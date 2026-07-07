@@ -1,0 +1,10 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------< it.example:openf1-java-react-app >------------------
+[INFO] Building OpenF1 Java React App 1.0.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- exec:3.5.0:java (default-cli) @ openf1-java-react-app ---
+Server avviato: http://localhost:8080
+API locale: http://localhost:8080/api/drivers?driver_number=1&session_key=9158
