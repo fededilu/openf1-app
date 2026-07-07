@@ -80,7 +80,6 @@ public class OpenF1Application {
         String sessionKey = query.getOrDefault("session_key", "latest");
         String apiUrl = OPENF1_DRIVERS_STANDING
                 + "?session_key=" + urlEncode(sessionKey);
-        System.out.println("Making championship drivers request");
         proxyOpenF1Request(exchange, apiUrl, "Errore nel recupero classifica piloti da OpenF1");
     }
 
@@ -101,8 +100,6 @@ public class OpenF1Application {
         String year = query.getOrDefault("year", "latest");
         String apiUrl = OPENF1_MEETINGS_URL
                 + "?year=" + urlEncode(year);
-        System.out.println("Making meetings request");
-
         proxyOpenF1Request(exchange, apiUrl, "Errore nel recupero championship da OpenF1");
     }
 
@@ -133,7 +130,6 @@ public class OpenF1Application {
                 + "?circuit_key=" + urlEncode(circuitKey)
                 + "&year=" + urlEncode(year)
                 + "&session_name=" + urlEncode(sessionName);
-        System.out.println("Making session request: " + apiUrl);
         proxyOpenF1Request(exchange, apiUrl, "Errore nel recupero sessioni da OpenF1");
     }
 
@@ -166,6 +162,8 @@ public class OpenF1Application {
 
     private static void proxyOpenF1Request(HttpExchange exchange, String apiUrl, String errorMessage) throws IOException {
         try {
+            System.out.println("Making request request: " + apiUrl);
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl))
                     .timeout(Duration.ofSeconds(15))

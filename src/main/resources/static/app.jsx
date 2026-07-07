@@ -252,7 +252,6 @@ function ResultsPage() {
 
     if (selectedRace) {
         const raceFinished = isRaceFinished(selectedRace);
-
         return (
             <section className="page">
                 <button
@@ -277,7 +276,14 @@ function ResultsPage() {
                         <strong>La gara non e iniziata.</strong>
                         <span>I risultati saranno disponibili dopo la conclusione della sessione.</span>
                     </article>
-                ) : (
+                ) :
+                    selectedRace.is_cancelled ? (
+                        <article className="state race-cancelled">
+                            <strong>La e stata cancellata.</strong>
+                            <span>Risultati non disponibili</span>
+                        </article>
+                ) :
+                (
                     <>
                         <div className="result-tabs" role="tablist" aria-label="Tipo sessione">
                             <button
@@ -510,20 +516,21 @@ function isRaceFinished(race) {
     return oneDayAfterNow > new Date(race.date_end).getTime();
 }
 
-function isRaceCancelled(race) {
-    if(race.is_cancelled){
-        return true;
-    }
-    return false
-}
 
 function formatGapToLeader(gapToLeader) {
+    if(Array.isArray(gapToLeader)){
+        gapToLeader = gapToLeader.at(-1);
+    }
     if (gapToLeader === 0) {
         return "Leader";
     }
     if (gapToLeader === null || gapToLeader === undefined) {
         return "-";
     }
+    if (gapToLeader.toString().includes("LAP")){
+        return gapToLeader.toString();
+    }
+
     return `+${Number(gapToLeader).toFixed(3)}s`;
 }
 
