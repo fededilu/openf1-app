@@ -1,4 +1,4 @@
-const { useEffect, useState } = React;
+const { useEffect, useRef, useState } = React;
 
 function App() {
     const [drivers, setDrivers] = useState([]);
@@ -156,6 +156,8 @@ function ResultsPage() {
     const [results, setResults] = useState([]);
     const [resultsLoading, setResultsLoading] = useState(false);
     const [resultsError, setResultsError] = useState("");
+    const previousScrollY = useRef(0);
+    const shouldRestoreScroll = useRef(false);
     const currentYear = new Date().getFullYear();
 
     useEffect(() => {
@@ -236,7 +238,20 @@ function ResultsPage() {
         loadResults();
     }, [selectedRace, selectedSessionName]);
 
+    useEffect(() => {
+        if (!selectedRace && shouldRestoreScroll.current) {
+            shouldRestoreScroll.current = false;
+            requestAnimationFrame(() => {
+                window.scrollTo({
+                    top: previousScrollY.current,
+                    behavior: "auto"
+                });
+            });
+        }
+    }, [selectedRace]);
+
     function handleShowResults(race) {
+        previousScrollY.current = window.scrollY;
         setSelectedRace(race);
         setSelectedSessionName("Race");
         setResults([]);
@@ -244,6 +259,7 @@ function ResultsPage() {
     }
 
     function handleBackToRaces() {
+        shouldRestoreScroll.current = true;
         setSelectedRace(null);
         setSelectedSessionName("Race");
         setResults([]);
@@ -354,6 +370,7 @@ function ResultsPage() {
             </section>
         );
     }
+
 
     return (
         <section className="page">
