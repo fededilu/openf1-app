@@ -130,7 +130,8 @@ h1 {
 }
 
 .driver-list,
-.race-list {
+.race-list,
+.championship-list {
     display: grid;
     gap: 16px;
     padding: 0;
@@ -139,7 +140,8 @@ h1 {
 }
 
 .driver-card,
-.race-card {
+.race-card,
+.championship-card {
     display: flex;
     align-items: center;
     gap: 20px;
@@ -148,6 +150,20 @@ h1 {
     border-radius: 8px;
     background: #ffffff;
     box-shadow: 0 12px 30px rgba(21, 25, 35, 0.08);
+}
+
+.championship-position {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: #151923;
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 900;
 }
 
 .driver-photo {
@@ -171,6 +187,7 @@ h1 {
 
 .driver-info,
 .race-info {
+    flex: 1;
     min-width: 0;
 }
 
@@ -226,6 +243,29 @@ h2 {
     background-color: #FF1801;
 }
 
+.championship-points {
+    margin-left: auto;
+    min-width: 92px;
+    text-align: right;
+}
+
+.championship-points strong,
+.championship-points span {
+    display: block;
+}
+
+.championship-points strong {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+
+.championship-points span {
+    margin-top: 4px;
+    color: #687385;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
 @media (max-width: 560px) {
     .topbar {
         width: min(100% - 24px, 920px);
@@ -237,9 +277,20 @@ h2 {
     }
 
     .driver-card,
-    .race-card {
+    .race-card,
+    .championship-card {
         align-items: flex-start;
         gap: 14px;
+    }
+
+    .championship-card {
+        flex-wrap: wrap;
+    }
+
+    .championship-position {
+        width: 38px;
+        height: 38px;
+        flex-basis: 38px;
     }
 
     .driver-photo {
@@ -252,5 +303,14 @@ h2 {
         width: 72px;
         height: 72px;
         flex-basis: 72px;
+    }
+
+    .championship-points {
+        flex: 0 0 auto;
+        min-width: 72px;
+    }
+
+    .championship-points strong {
+        font-size: 1.35rem;
     }
 }

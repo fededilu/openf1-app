@@ -20,7 +20,7 @@ import java.util.Map;
 public class OpenF1Application {
     private static final int PORT = 8080;
     private static final String OPENF1_DRIVERS_URL = "https://api.openf1.org/v1/drivers";
-    private static final String OPENF1_SESSIONS_URL = "https://api.openf1.org/v1/sessions";
+    private static final String OPENF1_MEETINGS_URL = "https://api.openf1.org/v1/meetings";
     private static final String OPENF1_DRIVERS_STANDING = "https://api.openf1.org/v1/championship_drivers";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -29,7 +29,7 @@ public class OpenF1Application {
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
         server.createContext("/api/drivers", OpenF1Application::handleDrivers);
-        server.createContext("/api/sessions", OpenF1Application::handleSessions);
+        server.createContext("/api/meetings", OpenF1Application::handleSessions);
         server.createContext("/api/championship_drivers", OpenF1Application::handleChampionship);
         server.createContext("/", OpenF1Application::handleStaticFile);
         server.start();
@@ -74,10 +74,10 @@ public class OpenF1Application {
 
         Map<String, String> query = parseQuery(exchange.getRequestURI().getRawQuery());
         String sessionKey = query.getOrDefault("session_key", "latest");
-        String apiUrl = OPENF1_SESSIONS_URL
+        String apiUrl = OPENF1_DRIVERS_STANDING
                 + "?session_key=" + urlEncode(sessionKey);
-        System.out.println("Making champion ship request");
-        proxyOpenF1Request(exchange, apiUrl, "Errore nel recupero sessioni da OpenF1");
+        System.out.println("Making championship drivers request");
+        proxyOpenF1Request(exchange, apiUrl, "Errore nel recupero classifica piloti da OpenF1");
     }
 
     private static void handleSessions(HttpExchange exchange) throws IOException {
@@ -94,12 +94,10 @@ public class OpenF1Application {
         }
 
         Map<String, String> query = parseQuery(exchange.getRequestURI().getRawQuery());
-        String year = query.getOrDefault("year", "2026");
-        String sessionName = query.getOrDefault("session_name", "Race");
-        String apiUrl = OPENF1_SESSIONS_URL
-                + "?year=" + urlEncode(year)
-                + "&session_name=" + urlEncode(sessionName);
-        System.out.println("Making session request");
+        String year = query.getOrDefault("year", "latest");
+        String apiUrl = OPENF1_MEETINGS_URL
+                + "?year=" + urlEncode(year);
+        System.out.println("Making meetings request");
 
         proxyOpenF1Request(exchange, apiUrl, "Errore nel recupero championship da OpenF1");
     }

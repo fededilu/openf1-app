@@ -38,7 +38,7 @@ function App() {
     }, []);
 
     function navigateTo(page) {
-        window.location.hash = page === "results" ? "results" : "";
+        window.location.hash = page === "home" ? "" : page;
         setCurrentPage(page);
         setMenuOpen(false);
     }
@@ -65,6 +65,13 @@ function App() {
                 <div className={`nav-menu ${menuOpen ? "is-open" : ""}`}>
                     <button
                         type="button"
+                        className={currentPage === "driver-championship" ? "nav-link active" : "nav-link"}
+                        onClick={() => navigateTo("driver-championship")}
+                    >
+                        Driver Championship
+                    </button>
+                    <button
+                        type="button"
                         className={currentPage === "results" ? "nav-link active" : "nav-link"}
                         onClick={() => navigateTo("results")}
                     >
@@ -87,6 +94,8 @@ function App() {
                     error={error}
                     onShowDetails={handleShowDetails}
                 />
+            ) : currentPage === "driver-championship" ? (
+                <DriverChampionshipPage />
             ) : (
                 <ResultsPage />
             )}
@@ -147,7 +156,7 @@ function ResultsPage() {
     useEffect(() => {
         async function loadRaces() {
             try {
-                const response = await fetch(`/api/sessions?year=${currentYear}&session_name=Race`);
+                const response = await fetch(`/api/meetings?year=${currentYear}`);
                 if (!response.ok) {
                     throw new Error("Risposta non valida dal backend");
                 }
@@ -180,10 +189,10 @@ function ResultsPage() {
             {!loading && !error && (
                 <ul className="race-list">
                     {races.map((race) => (
-                        <li className="race-card" key={race.session_key}>
+                        <li className="race-card" key={race.meeting_key}>
                             <img
-                                src={getFlagUrl(race.country_code)}
-                                alt={`Bandiera ${race.country_name}`}
+                                src={race.country_flag}
+                                alt={`Flag ${race.country_name}`}
                                 className="race-flag"
                             />
                             <div className="race-info">
@@ -205,74 +214,103 @@ function ResultsPage() {
     );
 }
 
-function championShipPage(){
+function DriverChampionshipPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const currentYear = new Date().getFullYear();
-    const [drivers, setDrivers] = useState([]);
+    const [standings, setStandings] = useState([]);
 
     useEffect(() => {
-            async function loadChampionship() {
-                try {
-                    const response = await fetch(`/api/championship_drivers?session_key=${currentYear}`);
-                    if (!response.ok) {
-                        throw new Error("Risposta non valida dal backend");
-                    }
-
-                    const data = await response.json();
-                    setDrivers(data);
-                } catch (exception) {
-                    setError("Non riesco a caricare la lista delle gare.");
-                } finally {
-                    setLoading(false);
+        async function loadChampionship() {
+            try {
+                const championshipResponse = await fetch("/api/championship_drivers?session_key=latest");
+                if (!championshipResponse.ok) {
+                    throw new Error("Risposta non valida dal backend");
                 }
-            }
 
-            loadChampionship();
-        }, [currentYear]);
+                const championshipData = await championshipResponse.json();
+                const sessionKey = championshipData[0]?.session_key || "latest";
+                const driversResponse = await fetch(`/api/drivers?session_key=${sessionKey}`);
+                if (!driversResponse.ok) {
+                    throw new Error("Risposta non valida dal backend");
+                }
+
+                const driversData = await driversResponse.json();
+                const driversByNumber = new Map(
+                    driversData.map((driver) => [String(driver.driver_number), driver])
+                );
+
+                const enrichedStandings = championshipData
+                    .map((standing) => ({
+                        ...standing,
+                        driver: driversByNumber.get(String(standing.driver_number))
+                    }))
+                    .sort((first, second) => first.position_current - second.position_current);
+
+                setStandings(enrichedStandings);
+            } catch (exception) {
+                setError("Non riesco a caricare la classifica piloti.");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadChampionship();
+    }, []);
 
     return (
         <section className="page">
             <header className="header">
                 <p className="eyebrow">OpenF1 API</p>
-                <h1>Results</h1>
+                <h1>Driver Championship</h1>
                 <p className="subtitle">
-                    Classifica campionato mondiale {currentYear}.
+                    Classifica piloti aggiornata con nome, scuderia e punti.
                 </p>
             </header>
 
-            {loading && <p className="state">Caricamento gare in corso...</p>}
+            {loading && <p className="state">Caricamento classifica in corso...</p>}
             {error && <p className="state error">{error}</p>}
 
             {!loading && !error && (
-                <ul className="driver-list">
-                    {drivers.map((driver) => (
-                        <li className="driver-card" key={`${driver.session_key}-${driver.driver_number}`}>
-                            <img
-                                src={driver.headshot_url}
-                                alt={`Foto di ${driver.full_name}`}
-                                className="driver-photo"
-                            />
-                            <div className="driver-info">
-                                <div className="driver-topline">
-                                    <span className="driver-number">#{driver.driver_number}</span>
-                                    <span className="team" style={{ borderColor: `#${driver.team_colour}` }}>
-                                        {driver.team_name}
-                                    </span>
+                <ul className="championship-list">
+                    {standings.map((standing) => {
+                        const driver = standing.driver;
+                        const teamColour = driver?.team_colour ? `#${driver.team_colour}` : "#dbe1e8";
+
+                        return (
+                            <li
+                                className="championship-card"
+                                key={`${standing.session_key}-${standing.driver_number}`}
+                            >
+                                <span className="championship-position">
+                                    {standing.position_current}
+                                </span>
+                                {driver?.headshot_url && (
+                                    <img
+                                        src={driver.headshot_url}
+                                        alt={`Foto di ${driver.full_name}`}
+                                        className="driver-photo"
+                                    />
+                                )}
+                                <div className="driver-info">
+                                    <div className="driver-topline">
+                                        <span className="driver-number">#{standing.driver_number}</span>
+                                        <span className="team" style={{ borderColor: teamColour }}>
+                                            {driver?.team_name || "Scuderia non disponibile"}
+                                        </span>
+                                    </div>
+                                    <h2>{driver?.full_name || `Pilota #${standing.driver_number}`}</h2>
                                 </div>
-                                <h2>{driver.full_name}</h2>
-                                <p>{driver.country_code} &middot; {driver.name_acronym} &middot; {driver.broadcast_name}</p>
-                                <button onClick={() => onShowDetails(driver)}>
-                                    Details
-                                </button>
-                            </div>
-                        </li>
-                    ))}
+                                <div className="championship-points">
+                                    <strong>{standing.points_current}</strong>
+                                    <span>punti</span>
+                                </div>
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
         </section>
-        );
-
+    );
 }
 
 function formatRaceDate(dateStart) {
@@ -291,7 +329,13 @@ function getFlagUrl(countryCode) {
 }
 
 function getPageFromHash() {
-    return window.location.hash === "#results" ? "results" : "home";
+    if (window.location.hash === "#results") {
+        return "results";
+    }
+    if (window.location.hash === "#driver-championship") {
+        return "driver-championship";
+    }
+    return "home";
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
