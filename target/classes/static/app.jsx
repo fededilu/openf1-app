@@ -151,6 +151,11 @@ function ResultsPage() {
     const [races, setRaces] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [selectedRace, setSelectedRace] = useState(null);
+    const [selectedSessionName, setSelectedSessionName] = useState("Race");
+    const [results, setResults] = useState([]);
+    const [resultsLoading, setResultsLoading] = useState(false);
+    const [resultsError, setResultsError] = useState("");
     const currentYear = new Date().getFullYear();
 
     useEffect(() => {
@@ -172,6 +177,177 @@ function ResultsPage() {
 
         loadRaces();
     }, [currentYear]);
+
+    useEffect(() => {
+        if (!selectedRace || !isRaceFinished(selectedRace)) {
+            return;
+        }
+
+        async function loadResults() {
+            setResultsLoading(true);
+            setResultsError("");
+            setResults([]);
+
+            try {
+                const sessionResponse = await fetch(
+                    `/api/sessions?circuit_key=${encodeURIComponent(selectedRace.circuit_key)}&year=${encodeURIComponent(selectedRace.year)}&session_name=${encodeURIComponent(selectedSessionName)}`
+                );
+                if (!sessionResponse.ok) {
+                    throw new Error("Risposta non valida dal backend");
+                }
+
+                const sessions = await sessionResponse.json();
+                const session = sessions[0];
+                if (!session?.session_key) {
+                    setResultsError("Sessione non trovata per questa gara.");
+                    return;
+                }
+
+                const [resultsResponse, driversResponse] = await Promise.all([
+                    fetch(`/api/session_result?session_key=${encodeURIComponent(session.session_key)}`),
+                    fetch(`/api/drivers?session_key=${encodeURIComponent(session.session_key)}`)
+                ]);
+
+                if (!resultsResponse.ok || !driversResponse.ok) {
+                    throw new Error("Risposta non valida dal backend");
+                }
+
+                const resultsData = await resultsResponse.json();
+                const driversData = await driversResponse.json();
+                const driversByNumber = new Map(
+                    driversData.map((driver) => [String(driver.driver_number), driver])
+                );
+
+                const enrichedResults = resultsData
+                    .map((result) => ({
+                        ...result,
+                        driver: driversByNumber.get(String(result.driver_number))
+                    }))
+                    .sort((first, second) => getResultPositionValue(first) - getResultPositionValue(second));
+
+                setResults(enrichedResults);
+            } catch (exception) {
+                setResultsError("Non riesco a caricare i risultati della sessione.");
+            } finally {
+                setResultsLoading(false);
+            }
+        }
+
+        loadResults();
+    }, [selectedRace, selectedSessionName]);
+
+    function handleShowResults(race) {
+        setSelectedRace(race);
+        setSelectedSessionName("Race");
+        setResults([]);
+        setResultsError("");
+    }
+
+    function handleBackToRaces() {
+        setSelectedRace(null);
+        setSelectedSessionName("Race");
+        setResults([]);
+        setResultsError("");
+    }
+
+    if (selectedRace) {
+        const raceFinished = isRaceFinished(selectedRace);
+
+        return (
+            <section className="page">
+                <button
+                    type="button"
+                    className="back-button"
+                    aria-label="Torna alla lista gare"
+                    onClick={handleBackToRaces}
+                >
+                    &larr;
+                </button>
+
+                <header className="header">
+                    <p className="eyebrow">Results</p>
+                    <h1>{selectedRace.circuit_short_name}</h1>
+                    <p className="subtitle">
+                        {selectedRace.meeting_name} &middot; {formatRaceDate(selectedRace.date_start)}
+                    </p>
+                </header>
+
+                {!raceFinished ? (
+                    <article className="state race-pending">
+                        <strong>La gara non e iniziata.</strong>
+                        <span>I risultati saranno disponibili dopo la conclusione della sessione.</span>
+                    </article>
+                ) : (
+                    <>
+                        <div className="result-tabs" role="tablist" aria-label="Tipo sessione">
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={selectedSessionName === "Qualifying"}
+                                className={selectedSessionName === "Qualifying" ? "result-tab active" : "result-tab"}
+                                onClick={() => setSelectedSessionName("Qualifying")}
+                            >
+                                Qualifiche
+                            </button>
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={selectedSessionName === "Race"}
+                                className={selectedSessionName === "Race" ? "result-tab active" : "result-tab"}
+                                onClick={() => setSelectedSessionName("Race")}
+                            >
+                                Gara
+                            </button>
+                        </div>
+
+                        {resultsLoading && <p className="state">Caricamento risultati in corso...</p>}
+                        {resultsError && <p className="state error">{resultsError}</p>}
+
+                        {!resultsLoading && !resultsError && (
+                            <ul className="result-list">
+                                {results.map((result) => {
+                                    const driver = result.driver;
+                                    const teamColour = driver?.team_colour ? `#${driver.team_colour}` : "#dbe1e8";
+
+                                    return (
+                                        <li
+                                            className="result-card"
+                                            key={`${result.session_key}-${result.driver_number}`}
+                                        >
+                                            <span className="championship-position">
+                                                {result.position || "-"}
+                                            </span>
+                                            {driver?.headshot_url && (
+                                                <img
+                                                    src={driver.headshot_url}
+                                                    alt={`Foto di ${driver.full_name}`}
+                                                    className="driver-photo"
+                                                />
+                                            )}
+                                            <div className="driver-info">
+                                                <div className="driver-topline">
+                                                    <span className="driver-number">#{result.driver_number}</span>
+                                                    <span className="team" style={{ borderColor: teamColour }}>
+                                                        {driver?.team_name || "Scuderia non disponibile"}
+                                                    </span>
+                                                </div>
+                                                <h2>{driver?.full_name || `Pilota #${result.driver_number}`}</h2>
+                                                <p>{formatResultStatus(result)}</p>
+                                            </div>
+                                            <div className="result-gap">
+                                                <strong>{formatGapToLeader(result.gap_to_leader)}</strong>
+                                                <span>dal primo</span>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+                    </>
+                )}
+            </section>
+        );
+    }
 
     return (
         <section className="page">
@@ -201,8 +377,9 @@ function ResultsPage() {
                                     <span className="team">{race.country_name}</span>
                                 </div>
                                 <h2>{race.circuit_short_name}</h2>
-                                <p>{race.country_name}</p>
-                                <button type="button" onClick={() => {}}>
+                                <p>{race.meeting_name}</p>
+                                <p>{race.meeting_official_name}</p>
+                                <button type="button" onClick={() => handleShowResults(race)}>
                                     Vedi risultati
                                 </button>
                             </div>
@@ -322,6 +499,52 @@ function formatRaceDate(dateStart) {
     const minutes = String(date.getMinutes()).padStart(2, "0");
 
     return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
+function isRaceFinished(race) {
+    if (!race?.date_end) {
+        return false;
+    }
+
+    const oneDayAfterNow = Date.now() + 24 * 60 * 60 * 1000;
+    return oneDayAfterNow > new Date(race.date_end).getTime();
+}
+
+function isRaceCancelled(race) {
+    if(race.is_cancelled){
+        return true;
+    }
+    return false
+}
+
+function formatGapToLeader(gapToLeader) {
+    if (gapToLeader === 0) {
+        return "Leader";
+    }
+    if (gapToLeader === null || gapToLeader === undefined) {
+        return "-";
+    }
+    return `+${Number(gapToLeader).toFixed(3)}s`;
+}
+
+function getResultPositionValue(result) {
+    return result.position === null || result.position === undefined ? Number.MAX_SAFE_INTEGER : result.position;
+}
+
+function formatResultStatus(result) {
+    if (result.dsq) {
+        return "Squalificato";
+    }
+    if (result.dns) {
+        return "Non partito";
+    }
+    if (result.dnf) {
+        return "Ritirato";
+    }
+    if (result.number_of_laps) {
+        return `${result.number_of_laps} giri`;
+    }
+    return "Risultato classificato";
 }
 
 function getFlagUrl(countryCode) {
