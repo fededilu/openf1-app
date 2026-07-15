@@ -371,6 +371,10 @@ function ResultsPage() {
         );
     }
 
+    const nextRace = races
+        .filter((race) => new Date(race.date_start) >= new Date())
+        .sort((first, second) => new Date(first.date_start) - new Date(second.date_start))[0];
+
     return (
         <section className="page">
             <header className="header">
@@ -385,29 +389,54 @@ function ResultsPage() {
             {error && <p className="state error">{error}</p>}
 
             {!loading && !error && (
-                <ul className="race-list">
-                    {races.map((race) => (
-                        <li className="race-card" key={race.meeting_key}>
+                <>
+                    {nextRace && (
+                        <article className="next-race-card" >
                             <img
-                                src={race.country_flag}
-                                alt={`Flag ${race.country_name}`}
+                                src={nextRace.country_flag}
+                                alt={`Flag ${nextRace.country_name}`}
                                 className="race-flag"
                             />
                             <div className="race-info">
                                 <div className="race-topline">
-                                    <span className="race-date">{formatRaceDate(race.date_start)}</span>
-                                    <span className="team">{race.country_name}</span>
+                                    <span className="race-date">NEXT RACE </span>
+                                    <span className="race-date">{formatRaceDate(nextRace.date_start)}</span>
+                                    <span className="team">{nextRace.country_name}</span>
                                 </div>
-                                <h2>{race.circuit_short_name}</h2>
-                                <p>{race.meeting_name}</p>
-                                <p>{race.meeting_official_name}</p>
-                                <button type="button" onClick={() => handleShowResults(race)}>
-                                    Vedi risultati
+                                <h2>{nextRace.circuit_short_name}</h2>
+                                <p>{nextRace.meeting_name}</p>
+                                <p>{nextRace.meeting_official_name}</p>
+                                <button type="button" onClick={() => handleShowResults(nextRace)}>
+                                    Go live
                                 </button>
                             </div>
-                        </li>
-                    ))}
-                </ul>
+                        </article>
+                    )}
+
+                    <ul className="race-list">
+                        {races.map((race) => (
+                            <li className="race-card" key={race.meeting_key}>
+                                <img
+                                    src={race.country_flag}
+                                    alt={`Flag ${race.country_name}`}
+                                    className="race-flag"
+                                />
+                                <div className="race-info">
+                                    <div className="race-topline">
+                                        <span className="race-date">{formatRaceDate(race.date_start)}</span>
+                                        <span className="team">{race.country_name}</span>
+                                    </div>
+                                    <h2>{race.circuit_short_name}</h2>
+                                    <p>{race.meeting_name}</p>
+                                    <p>{race.meeting_official_name}</p>
+                                    <button type="button" onClick={() => handleShowResults(race)}>
+                                        Vedi risultati
+                                    </button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </>
             )}
         </section>
     );

@@ -156,6 +156,7 @@ h1 {
 
 .driver-card,
 .race-card,
+.next-race-card,
 .championship-card,
 .result-card {
     display: flex;
@@ -166,6 +167,14 @@ h1 {
     border-radius: 8px;
     background: #ffffff;
     box-shadow: 0 12px 30px rgba(21, 25, 35, 0.08);
+}
+
+.next-race-card {
+    border-style: solid;
+    border-width: 4px;
+    border-color: #ED1131;
+    border-radius: 8px;
+    margin-bottom: 16px;
 }
 
 .back-button {
@@ -349,6 +358,11 @@ h2 {
     .page {
         width: min(100% - 24px, 920px);
         padding: 28px 0;
+    }
+
+    .next-race-card{
+        align-items: flex-start;
+        gap: 14px;
     }
 
     .driver-card,

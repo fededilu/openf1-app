@@ -39,7 +39,7 @@ public class OpenF1Application {
         server.start();
 
         System.out.println("Server avviato: http://localhost:" + PORT);
-        System.out.println("API locale: http://localhost:" + PORT + "/api/drivers?session_key=9158");
+        System.out.println("API locale: http://localhost:" + PORT + "/api/");
     }
 
     private static void handleDrivers(HttpExchange exchange) throws IOException {
