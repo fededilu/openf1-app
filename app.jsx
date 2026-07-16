@@ -631,7 +631,7 @@ function LivePage() {
                 <h1>{title}</h1>
                 <p className="subtitle">
                     {meeting} &middot; polling ogni 5 secondi
-                    {lastUpdated ? ` &middot; ${isReplay ? "tempo replay" : "ultimo aggiornamento"} ${formatLiveTime(lastUpdated)}` : ""}
+                    {lastUpdated ? ` ${isReplay ? "tempo replay" : "ultimo aggiornamento"} ${formatLiveTime(lastUpdated)}` : ""}
                 </p>
             </header>
 
