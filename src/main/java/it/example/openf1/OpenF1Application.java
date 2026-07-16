@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -24,6 +25,7 @@ public class OpenF1Application {
     private static final String OPENF1_DRIVERS_STANDING = "https://api.openf1.org/v1/championship_drivers";
     private static final String OPENF1_SESSIONS_URL = "https://api.openf1.org/v1/sessions";
     private static final String OPENF1_SESSION_RESULT_URL = "https://api.openf1.org/v1/session_result";
+    private static final String OPENF1_INTERVALS_URL = "https://api.openf1.org/v1/intervals";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -35,6 +37,7 @@ public class OpenF1Application {
         server.createContext("/api/championship_drivers", OpenF1Application::handleChampionship);
         server.createContext("/api/sessions", OpenF1Application::handleSessions);
         server.createContext("/api/session_result", OpenF1Application::handleSessionResult);
+        server.createContext("/api/intervals", OpenF1Application::handleIntervals);
         server.createContext("/", OpenF1Application::handleStaticFile);
         server.start();
 
@@ -160,6 +163,42 @@ public class OpenF1Application {
         proxyOpenF1Request(exchange, apiUrl, "Errore nel recupero risultati sessione da OpenF1");
     }
 
+    private static void handleIntervals(HttpExchange exchange) throws IOException {
+        addCorsHeaders(exchange);
+
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(204, -1);
+            return;
+        }
+
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendText(exchange, 405, "Metodo non supportato");
+            return;
+        }
+
+        Map<String, String> query = parseQuery(exchange.getRequestURI().getRawQuery());
+        String sessionKey = query.getOrDefault("session_key", "latest");
+        String dateGte = query.get("date_gte");
+        String dateLte = query.get("date_lte");
+
+        if (dateGte == null) {
+            sendJsonError(exchange, 400, "Parametro date_gte obbligatorio");
+            return;
+        }
+
+        StringBuilder apiUrl = new StringBuilder(OPENF1_INTERVALS_URL)
+                .append("?session_key=")
+                .append(urlEncode(sessionKey))
+                .append("&date%3E=")
+                .append(urlEncode(dateGte));
+
+        if (dateLte != null) {
+            apiUrl.append("&date%3C=").append(urlEncode(dateLte));
+        }
+
+        proxyOpenF1Request(exchange, apiUrl.toString(), "Errore nel recupero intervalli da OpenF1");
+    }
+
     private static void proxyOpenF1Request(HttpExchange exchange, String apiUrl, String errorMessage) throws IOException {
         try {
             System.out.println("Making request request: " + apiUrl);
@@ -209,7 +248,7 @@ public class OpenF1Application {
         for (String pair : rawQuery.split("&")) {
             String[] parts = pair.split("=", 2);
             if (parts.length == 2) {
-                values.put(parts[0], parts[1]);
+                values.put(urlDecode(parts[0]), urlDecode(parts[1]));
             }
         }
         return values;
@@ -217,6 +256,10 @@ public class OpenF1Application {
 
     private static String urlEncode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private static String urlDecode(String value) {
+        return URLDecoder.decode(value, StandardCharsets.UTF_8);
     }
 
     private static String contentType(String path) {

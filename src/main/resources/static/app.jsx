@@ -79,6 +79,20 @@ function App() {
                     </button>
                     <button
                         type="button"
+                        className={currentPage === "live" ? "nav-link active" : "nav-link"}
+                        onClick={() => navigateTo("live")}
+                    >
+                        Live
+                    </button>
+                    <button
+                        type="button"
+                        className={currentPage === "replay" ? "nav-link active" : "nav-link"}
+                        onClick={() => navigateTo("replay")}
+                    >
+                        Replay
+                    </button>
+                    <button
+                        type="button"
                         className={currentPage === "home" ? "nav-link active" : "nav-link"}
                         onClick={() => navigateTo("home")}
                     >
@@ -96,6 +110,10 @@ function App() {
                 />
             ) : currentPage === "driver-championship" ? (
                 <DriverChampionshipPage />
+            ) : currentPage === "live" ? (
+                <LivePage />
+            ) : currentPage === "replay" ? (
+                <ReplayPage />
             ) : (
                 <ResultsPage />
             )}
@@ -258,6 +276,32 @@ function ResultsPage() {
         setResultsError("");
     }
 
+    async function handleGoLive(race) {
+        try {
+            const sessionResponse = await fetch(
+                `/api/sessions?circuit_key=${encodeURIComponent(race.circuit_key)}&year=${encodeURIComponent(race.year)}&session_name=Race`
+            );
+            if (!sessionResponse.ok) {
+                throw new Error("Risposta non valida dal backend");
+            }
+
+            const sessions = await sessionResponse.json();
+            const session = sessions[0];
+            if (!session?.session_key) {
+                throw new Error("Sessione non trovata");
+            }
+
+            const params = new URLSearchParams({
+                session_key: session.session_key,
+                title: race.circuit_short_name,
+                meeting: race.meeting_name
+            });
+            window.location.hash = `live?${params.toString()}`;
+        } catch (exception) {
+            setError("Non riesco ad aprire la pagina live per questa gara.");
+        }
+    }
+
     function handleBackToRaces() {
         shouldRestoreScroll.current = true;
         setSelectedRace(null);
@@ -406,7 +450,7 @@ function ResultsPage() {
                                 <h2>{nextRace.circuit_short_name}</h2>
                                 <p>{nextRace.meeting_name}</p>
                                 <p>{nextRace.meeting_official_name}</p>
-                                <button type="button" onClick={() => handleShowResults(nextRace)}>
+                                <button type="button" onClick={() => handleGoLive(nextRace)}>
                                     Go live
                                 </button>
                             </div>
@@ -438,6 +482,224 @@ function ResultsPage() {
                     </ul>
                 </>
             )}
+        </section>
+    );
+}
+
+function LivePage() {
+    const liveParams = getLiveParams();
+    const sessionKey = liveParams.get("session_key") || "latest";
+    const title = liveParams.get("title") || "Live";
+    const meeting = liveParams.get("meeting") || "Sessione in tempo reale";
+    const replayFrom = liveParams.get("replay_from");
+    const replayStepSeconds = Number(liveParams.get("replay_step_seconds") || 5) || 5;
+    const isReplay = Boolean(replayFrom);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [standings, setStandings] = useState([]);
+    const [lastUpdated, setLastUpdated] = useState("");
+    const standingsRef = useRef([]);
+    const lastRequestDate = useRef("");
+    const replayCursorDate = useRef("");
+    const inFlight = useRef(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        const controller = new AbortController();
+
+        async function loadLiveData() {
+            const initialDate = isReplay ? new Date(replayFrom).toISOString() : new Date().toISOString();
+            const initialWindowEnd = isReplay ? addSeconds(initialDate, replayStepSeconds) : null;
+            lastRequestDate.current = initialDate;
+            replayCursorDate.current = initialWindowEnd || "";
+            setLoading(true);
+            setError("");
+
+            try {
+                const intervalsUrl = buildIntervalsUrl(sessionKey, initialDate, initialWindowEnd);
+                const [driversResponse, intervalsResponse] = await Promise.all([
+                    fetch(`/api/drivers?session_key=${encodeURIComponent(sessionKey)}`, {
+                        signal: controller.signal
+                    }),
+                    fetch(intervalsUrl, {
+                        signal: controller.signal
+                    })
+                ]);
+
+                if (!driversResponse.ok) {
+                    throw new Error("Risposta non valida dal backend");
+                }
+
+                const driversData = await driversResponse.json();
+                const intervalsData = await readIntervalsResponse(intervalsResponse);
+                if (cancelled) {
+                    return;
+                }
+
+                const initialStandings = driversData.map((driver, index) => ({
+                    driver_number: driver.driver_number,
+                    session_key: sessionKey,
+                    driver,
+                    gap_to_leader: null,
+                    interval: null,
+                    date: null,
+                    sortIndex: index
+                }));
+
+                const mergedStandings = mergeIntervalsIntoStandings(initialStandings, intervalsData);
+                standingsRef.current = mergedStandings;
+                setStandings(mergedStandings);
+                setLastUpdated(initialWindowEnd || new Date().toISOString());
+            } catch (exception) {
+                if (!cancelled && exception.name !== "AbortError") {
+                    setError("Non riesco a caricare i dati live.");
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        async function pollLiveData() {
+            if (inFlight.current || !lastRequestDate.current || (isReplay && !replayCursorDate.current)) {
+                return;
+            }
+
+            inFlight.current = true;
+            const dateGte = isReplay ? replayCursorDate.current : lastRequestDate.current;
+            const dateLte = isReplay ? addSeconds(dateGte, replayStepSeconds) : new Date().toISOString();
+
+            try {
+                const intervalsResponse = await fetch(
+                    buildIntervalsUrl(sessionKey, dateGte, dateLte),
+                    { signal: controller.signal }
+                );
+
+                const intervalsData = await readIntervalsResponse(intervalsResponse);
+                if (cancelled) {
+                    return;
+                }
+
+                const mergedStandings = mergeIntervalsIntoStandings(standingsRef.current, intervalsData);
+                standingsRef.current = mergedStandings;
+                lastRequestDate.current = dateLte;
+                replayCursorDate.current = dateLte;
+                setStandings(mergedStandings);
+                setLastUpdated(dateLte);
+                setError("");
+            } catch (exception) {
+                if (!cancelled && exception.name !== "AbortError") {
+                    setError("Aggiornamento live non riuscito. Riprovo al prossimo polling.");
+                }
+            } finally {
+                inFlight.current = false;
+            }
+        }
+
+        loadLiveData();
+        const intervalId = window.setInterval(pollLiveData, 5000);
+
+        return () => {
+            cancelled = true;
+            controller.abort();
+            window.clearInterval(intervalId);
+        };
+    }, [sessionKey, isReplay, replayFrom, replayStepSeconds]);
+
+    return (
+        <section className="page">
+            <header className="header">
+                <p className="eyebrow">{isReplay ? "OpenF1 Replay" : "OpenF1 Live"}</p>
+                <h1>{title}</h1>
+                <p className="subtitle">
+                    {meeting} &middot; polling ogni 5 secondi
+                    {lastUpdated ? ` &middot; ${isReplay ? "tempo replay" : "ultimo aggiornamento"} ${formatLiveTime(lastUpdated)}` : ""}
+                </p>
+            </header>
+
+            {loading && <p className="state">Caricamento live in corso...</p>}
+            {error && <p className="state error">{error}</p>}
+
+            {!loading && (
+                <ul className="championship-list">
+                    {standings.map((standing, index) => {
+                        const driver = standing.driver;
+                        const teamColour = driver?.team_colour ? `#${driver.team_colour}` : "#dbe1e8";
+
+                        return (
+                            <li
+                                className="championship-card"
+                                key={`${standing.session_key}-${standing.driver_number}`}
+                            >
+                                <span className="championship-position">
+                                    {index + 1}
+                                </span>
+                                {driver?.headshot_url && (
+                                    <img
+                                        src={driver.headshot_url}
+                                        alt={`Foto di ${driver.full_name}`}
+                                        className="driver-photo"
+                                    />
+                                )}
+                                <div className="driver-info">
+                                    <div className="driver-topline">
+                                        <span className="driver-number">#{standing.driver_number}</span>
+                                        <span className="team" style={{ borderColor: teamColour }}>
+                                            {driver?.team_name || "Scuderia non disponibile"}
+                                        </span>
+                                    </div>
+                                    <h2>{driver?.full_name || `Pilota #${standing.driver_number}`}</h2>
+                                    <p>{standing.date ? `Dato ${formatLiveTime(standing.date)}` : "In attesa del primo intervallo"}</p>
+                                </div>
+                                <div className="championship-points">
+                                    <strong>{formatGapToLeader(standing.gap_to_leader)}</strong>
+                                    <span>dal leader</span>
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </section>
+    );
+}
+
+function ReplayPage() {
+    function startReplay() {
+        const params = new URLSearchParams({
+            session_key: "9939",
+            title: "Belgian GP Replay",
+            meeting: "Sessione storica OpenF1",
+            replay_from: "2025-07-27T14:20:38.000Z",
+            replay_step_seconds: "5"
+        });
+        window.location.hash = `live?${params.toString()}`;
+    }
+
+    return (
+        <section className="page">
+            <header className="header">
+                <p className="eyebrow">OpenF1 Replay</p>
+                <h1>Replay</h1>
+                <p className="subtitle">
+                    Simula una gara storica usando gli stessi aggiornamenti incrementali della pagina Live.
+                </p>
+            </header>
+
+            <article className="next-race-card">
+                <div className="race-info">
+                    <div className="race-topline">
+                        <span className="race-date">SESSION 9939</span>
+                        <span className="team">27/07/2025 14:20:38 UTC</span>
+                    </div>
+                    <h2>Belgian GP Replay</h2>
+                    <p>Ogni polling legge una finestra storica di 5 secondi e aggiorna solo i piloti ricevuti.</p>
+                    <button type="button" onClick={startReplay}>
+                        Avvia replay
+                    </button>
+                </div>
+            </article>
         </section>
     );
 }
@@ -579,6 +841,92 @@ function formatGapToLeader(gapToLeader) {
     return `+${Number(gapToLeader).toFixed(3)}s`;
 }
 
+function mergeIntervalsIntoStandings(currentStandings, intervals) {
+    const latestIntervalsByDriver = new Map();
+    intervals
+        .slice()
+        .sort((first, second) => new Date(first.date) - new Date(second.date))
+        .forEach((interval) => {
+            latestIntervalsByDriver.set(String(interval.driver_number), interval);
+        });
+
+    return currentStandings
+        .map((standing) => {
+            const interval = latestIntervalsByDriver.get(String(standing.driver_number));
+            if (!interval) {
+                return standing;
+            }
+
+            return {
+                ...standing,
+                session_key: interval.session_key,
+                gap_to_leader: interval.gap_to_leader,
+                interval: interval.interval,
+                date: interval.date
+            };
+        })
+        .sort(compareLiveStandings);
+}
+
+async function readIntervalsResponse(response) {
+    if (response.status === 404) {
+        return [];
+    }
+    if (!response.ok) {
+        throw new Error("Risposta non valida dal backend");
+    }
+
+    return response.json();
+}
+
+function buildIntervalsUrl(sessionKey, dateGte, dateLte) {
+    const params = new URLSearchParams({
+        session_key: sessionKey,
+        date_gte: dateGte
+    });
+
+    if (dateLte) {
+        params.set("date_lte", dateLte);
+    }
+
+    return `/api/intervals?${params.toString()}`;
+}
+
+function addSeconds(dateValue, seconds) {
+    return new Date(new Date(dateValue).getTime() + seconds * 1000).toISOString();
+}
+
+function compareLiveStandings(first, second) {
+    const firstGap = getLiveGapValue(first.gap_to_leader);
+    const secondGap = getLiveGapValue(second.gap_to_leader);
+
+    if (firstGap !== secondGap) {
+        return firstGap - secondGap;
+    }
+
+    return first.sortIndex - second.sortIndex;
+}
+
+function getLiveGapValue(gapToLeader) {
+    if (gapToLeader === null || gapToLeader === undefined) {
+        return Number.MAX_SAFE_INTEGER;
+    }
+    if (String(gapToLeader).toUpperCase().includes("LAP")) {
+        return Number.MAX_SAFE_INTEGER - 1;
+    }
+
+    const numericGap = Number(gapToLeader);
+    return Number.isNaN(numericGap) ? Number.MAX_SAFE_INTEGER : numericGap;
+}
+
+function formatLiveTime(dateValue) {
+    return new Date(dateValue).toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+    });
+}
+
 function getResultPositionValue(result) {
     return result.position === null || result.position === undefined ? Number.MAX_SAFE_INTEGER : result.position;
 }
@@ -610,7 +958,19 @@ function getPageFromHash() {
     if (window.location.hash === "#driver-championship") {
         return "driver-championship";
     }
+    if (window.location.hash === "#live" || window.location.hash.startsWith("#live?")) {
+        return "live";
+    }
+    if (window.location.hash === "#replay") {
+        return "replay";
+    }
     return "home";
+}
+
+function getLiveParams() {
+    const hash = window.location.hash;
+    const queryStart = hash.indexOf("?");
+    return new URLSearchParams(queryStart >= 0 ? hash.slice(queryStart + 1) : "");
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
