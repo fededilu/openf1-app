@@ -31,15 +31,13 @@ http://localhost:8080/api/drivers?driver_number=1&session_key=9158
 
 ## Deploy su GitHub Pages
 
-GitHub Pages puo servire solo file statici, quindi il deploy usa la cartella `docs/`:
+GitHub Pages puo servire solo file statici. Se Pages e configurato su branch `main` e cartella `/(root)`, la root del repository deve contenere:
 
-1. fai commit e push del repository;
-2. su GitHub vai in `Settings` -> `Pages`;
-3. in `Build and deployment` scegli `Deploy from a branch`;
-4. seleziona branch `main` e cartella `/docs`;
-5. salva.
+- `index.html`
+- `app.jsx`
+- `styles.css`
 
-La versione in `docs/` chiama direttamente `https://api.openf1.org/v1`, senza il backend Java locale.
+Questi file chiamano direttamente `https://api.openf1.org/v1`, senza il backend Java locale.
 
 ## Struttura
 
@@ -47,4 +45,4 @@ La versione in `docs/` chiama direttamente `https://api.openf1.org/v1`, senza il
 - `src/main/resources/static/index.html`: pagina principale.
 - `src/main/resources/static/app.jsx`: componente React.
 - `src/main/resources/static/styles.css`: stile della lista.
-- `docs/`: file statici pronti per GitHub Pages.
+- `index.html`, `app.jsx`, `styles.css`: file statici serviti da GitHub Pages quando la sorgente e `/(root)`.
