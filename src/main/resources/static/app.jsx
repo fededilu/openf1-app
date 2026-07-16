@@ -1,4 +1,17 @@
 const { useEffect, useRef, useState } = React;
+const OPENF1_API_BASE_URL = "https://api.openf1.org/v1";
+
+function openF1Url(endpoint, params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== "") {
+            searchParams.set(key, value);
+        }
+    });
+
+    const queryString = searchParams.toString();
+    return `${OPENF1_API_BASE_URL}/${endpoint}${queryString ? `?${queryString}` : ""}`;
+}
 
 function App() {
     const [drivers, setDrivers] = useState([]);
@@ -10,7 +23,7 @@ function App() {
     useEffect(() => {
         async function loadDrivers() {
             try {
-                const response = await fetch("/api/drivers?session_key=latest");
+                const response = await fetch(openF1Url("drivers", { session_key: "latest" }));
                 if (!response.ok) {
                     throw new Error("Risposta non valida dal backend");
                 }
@@ -181,7 +194,7 @@ function ResultsPage() {
     useEffect(() => {
         async function loadRaces() {
             try {
-                const response = await fetch(`/api/meetings?year=${currentYear}`);
+                const response = await fetch(openF1Url("meetings", { year: currentYear }));
                 if (!response.ok) {
                     throw new Error("Risposta non valida dal backend");
                 }
@@ -209,9 +222,11 @@ function ResultsPage() {
             setResults([]);
 
             try {
-                const sessionResponse = await fetch(
-                    `/api/sessions?circuit_key=${encodeURIComponent(selectedRace.circuit_key)}&year=${encodeURIComponent(selectedRace.year)}&session_name=${encodeURIComponent(selectedSessionName)}`
-                );
+                const sessionResponse = await fetch(openF1Url("sessions", {
+                    circuit_key: selectedRace.circuit_key,
+                    year: selectedRace.year,
+                    session_name: selectedSessionName
+                }));
                 if (!sessionResponse.ok) {
                     throw new Error("Risposta non valida dal backend");
                 }
@@ -224,8 +239,8 @@ function ResultsPage() {
                 }
 
                 const [resultsResponse, driversResponse] = await Promise.all([
-                    fetch(`/api/session_result?session_key=${encodeURIComponent(session.session_key)}`),
-                    fetch(`/api/drivers?session_key=${encodeURIComponent(session.session_key)}`)
+                    fetch(openF1Url("session_result", { session_key: session.session_key })),
+                    fetch(openF1Url("drivers", { session_key: session.session_key }))
                 ]);
 
                 if (!resultsResponse.ok || !driversResponse.ok) {
@@ -278,9 +293,11 @@ function ResultsPage() {
 
     async function handleGoLive(race) {
         try {
-            const sessionResponse = await fetch(
-                `/api/sessions?circuit_key=${encodeURIComponent(race.circuit_key)}&year=${encodeURIComponent(race.year)}&session_name=Race`
-            );
+            const sessionResponse = await fetch(openF1Url("sessions", {
+                circuit_key: race.circuit_key,
+                year: race.year,
+                session_name: "Race"
+            }));
             if (!sessionResponse.ok) {
                 throw new Error("Risposta non valida dal backend");
             }
@@ -518,7 +535,7 @@ function LivePage() {
             try {
                 const intervalsUrl = buildIntervalsUrl(sessionKey, initialDate, initialWindowEnd);
                 const [driversResponse, intervalsResponse] = await Promise.all([
-                    fetch(`/api/drivers?session_key=${encodeURIComponent(sessionKey)}`, {
+                    fetch(openF1Url("drivers", { session_key: sessionKey }), {
                         signal: controller.signal
                     }),
                     fetch(intervalsUrl, {
@@ -712,14 +729,14 @@ function DriverChampionshipPage() {
     useEffect(() => {
         async function loadChampionship() {
             try {
-                const championshipResponse = await fetch("/api/championship_drivers?session_key=latest");
+                const championshipResponse = await fetch(openF1Url("championship_drivers", { session_key: "latest" }));
                 if (!championshipResponse.ok) {
                     throw new Error("Risposta non valida dal backend");
                 }
 
                 const championshipData = await championshipResponse.json();
                 const sessionKey = championshipData[0]?.session_key || "latest";
-                const driversResponse = await fetch(`/api/drivers?session_key=${sessionKey}`);
+                const driversResponse = await fetch(openF1Url("drivers", { session_key: sessionKey }));
                 if (!driversResponse.ok) {
                     throw new Error("Risposta non valida dal backend");
                 }
@@ -882,14 +899,14 @@ async function readIntervalsResponse(response) {
 function buildIntervalsUrl(sessionKey, dateGte, dateLte) {
     const params = new URLSearchParams({
         session_key: sessionKey,
-        date_gte: dateGte
+        "date>=": dateGte
     });
 
     if (dateLte) {
-        params.set("date_lte", dateLte);
+        params.set("date<=", dateLte);
     }
 
-    return `/api/intervals?${params.toString()}`;
+    return `${OPENF1_API_BASE_URL}/intervals?${params.toString()}`;
 }
 
 function addSeconds(dateValue, seconds) {
