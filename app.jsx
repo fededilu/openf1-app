@@ -141,7 +141,7 @@ function HomePage({ drivers, loading, error, onShowDetails }) {
                 <p className="eyebrow">OpenF1 API</p>
                 <h1>Lista piloti</h1>
                 <p className="subtitle">
-                    Dati caricati dal backend Java e mostrati con React.
+                    Lista dei piloti.
                 </p>
             </header>
 
@@ -631,7 +631,7 @@ function LivePage() {
                 <h1>{title}</h1>
                 <p className="subtitle">
                     {meeting} &middot; polling ogni 5 secondi
-                    {lastUpdated ? ` &middot; ${isReplay ? "tempo replay" : "ultimo aggiornamento"} ${formatLiveTime(lastUpdated)}` : ""}
+                    {lastUpdated ? ` ${isReplay ? "tempo replay" : "ultimo aggiornamento"} ${formatLiveTime(lastUpdated)}` : ""}
                 </p>
             </header>
 
@@ -899,11 +899,11 @@ async function readIntervalsResponse(response) {
 function buildIntervalsUrl(sessionKey, dateGte, dateLte) {
     const params = new URLSearchParams({
         session_key: sessionKey,
-        "date>=": dateGte
+        "date>": dateGte
     });
 
     if (dateLte) {
-        params.set("date<=", dateLte);
+        params.set("date<", dateLte);
     }
 
     return `${OPENF1_API_BASE_URL}/intervals?${params.toString()}`;

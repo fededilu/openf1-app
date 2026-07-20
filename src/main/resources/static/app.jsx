@@ -141,7 +141,7 @@ function HomePage({ drivers, loading, error, onShowDetails }) {
                 <p className="eyebrow">OpenF1 API</p>
                 <h1>Lista piloti</h1>
                 <p className="subtitle">
-                    Dati caricati dal backend Java e mostrati con React.
+                    Lista dei piloti.
                 </p>
             </header>
 
