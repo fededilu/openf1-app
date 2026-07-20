@@ -899,11 +899,11 @@ async function readIntervalsResponse(response) {
 function buildIntervalsUrl(sessionKey, dateGte, dateLte) {
     const params = new URLSearchParams({
         session_key: sessionKey,
-        "date>=": dateGte
+        "date>": dateGte
     });
 
     if (dateLte) {
-        params.set("date<=", dateLte);
+        params.set("date<", dateLte);
     }
 
     return `${OPENF1_API_BASE_URL}/intervals?${params.toString()}`;
